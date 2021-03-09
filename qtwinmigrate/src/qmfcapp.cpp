@@ -69,13 +69,15 @@ int QMfcApp::mfc_argc = 0;
 #if QT_VERSION >= 0x050000
 #define QT_WA(unicode, ansi) unicode
 
-QMfcAppEventFilter::QMfcAppEventFilter() : QAbstractNativeEventFilter()
+QMfcAppEventFilter::QMfcAppEventFilter()
+    : QAbstractNativeEventFilter()
 {
+
 }
 
-bool QMfcAppEventFilter::nativeEventFilter(const QByteArray &, void *message, long *result)
+bool QMfcAppEventFilter::nativeEventFilter(const QByteArray& /*eventType*/, void* message, long* result)
 {
-    return static_cast<QMfcApp*>(qApp)->winEventFilter((MSG*)message, result);
+    return static_cast<QMfcApp*>(qApp)->winEventFilter(static_cast<MSG*>(message), result);
 }
 #endif
 
@@ -102,14 +104,17 @@ bool QMfcAppEventFilter::nativeEventFilter(const QByteArray &, void *message, lo
 static int modalLoopCount = 0;
 
 HHOOK hhook;
+
 LRESULT CALLBACK QtFilterProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     if (qApp) {
         // don't process deferred-deletes while in a modal loop
-        if (modalLoopCount)
+        if (modalLoopCount != 0) {
             qApp->sendPostedEvents();
-        else
-            qApp->sendPostedEvents(0, -1);
+        }
+        else {
+            qApp->sendPostedEvents(nullptr, -1);
+        }
     }
 
     return CallNextHookEx(hhook, nCode, wParam, lParam);
@@ -164,10 +169,10 @@ void QMfcApp::exitModalLoop()
     \code
     BOOL WINAPI DllMain(HINSTANCE hInstance, DWORD dwReason, LPVOID lpvReserved)
     {
-	if (dwReason == DLL_PROCESS_ATTACH)
-	    QMfcApp::pluginInstance(hInstance);
+    if (dwReason == DLL_PROCESS_ATTACH)
+        QMfcApp::pluginInstance(hInstance);
 
-	return TRUE;
+    return TRUE;
     }
     \endcode
 
@@ -188,25 +193,29 @@ void QMfcApp::exitModalLoop()
 */
 bool QMfcApp::pluginInstance(Qt::HANDLE plugin)
 {
-    if (qApp)
-	return FALSE;
-
-    QT_WA({
-	hhook = SetWindowsHookExW(WH_GETMESSAGE, QtFilterProc, 0, GetCurrentThreadId());
-    }, {
-	hhook = SetWindowsHookExA(WH_GETMESSAGE, QtFilterProc, 0, GetCurrentThreadId());
-    });
-
-    int argc = 0;
-    (void)new QApplication(argc, 0);
-
-    if (plugin) {
-	char filename[256];
-	if (GetModuleFileNameA((HINSTANCE)plugin, filename, 255))
-	    LoadLibraryA(filename);
+    if (qApp) {
+        return false;
     }
 
-    return TRUE;
+    QT_WA({
+              hhook = SetWindowsHookExW(WH_GETMESSAGE, QtFilterProc, nullptr, GetCurrentThreadId());
+          }, {
+              hhook = SetWindowsHookExA(WH_GETMESSAGE, QtFilterProc, 0, GetCurrentThreadId());
+          })
+
+    int argc = 0;
+
+    new QApplication(argc, nullptr);
+
+    if (plugin != nullptr) {
+        char filename[256];
+
+        if (GetModuleFileNameA(static_cast<HINSTANCE>(plugin), filename, 255) != 0u) {
+            LoadLibraryA(filename);
+        }
+    }
+
+    return true;
 }
 
 #if QT_VERSION >= 0x050000
@@ -242,7 +251,7 @@ int QMfcApp::run(CWinApp *mfcApp)
 {
     bool ownInstance = !qApp;
     if (ownInstance)
-	instance(mfcApp);
+        instance(mfcApp);
     int result = qApp->exec();
 
     if (mfcApp) {
@@ -252,7 +261,7 @@ int QMfcApp::run(CWinApp *mfcApp)
     }
 
     if (ownInstance)
-	delete qApp;
+        delete qApp;
 
     return result;
 }
@@ -270,20 +279,20 @@ int QMfcApp::run(CWinApp *mfcApp)
     \code
     BOOL MyMfcApp::InitInstance()
     {
-	// standard MFC initialization
-	// ...
+    // standard MFC initialization
+    // ...
 
-	// This sets the global qApp pointer
-	QMfcApp::instance(this);
+    // This sets the global qApp pointer
+    QMfcApp::instance(this);
 
-	// Qt GUI initialization
+    // Qt GUI initialization
     }
 
     BOOL MyMfcApp::Run()
     {
-	int result = QMfcApp::run(this);
-	delete qApp;
-	return result;
+    int result = QMfcApp::run(this);
+    delete qApp;
+    return result;
     }
     \endcode
 
@@ -294,23 +303,23 @@ QApplication *QMfcApp::instance(CWinApp *mfcApp)
     mfc_app = mfcApp;
     if (mfc_app) {
 #if defined(UNICODE)
-	QString exeName((QChar*)mfc_app->m_pszExeName, wcslen(mfc_app->m_pszExeName));
-	QString cmdLine((QChar*)mfc_app->m_lpCmdLine, wcslen(mfc_app->m_lpCmdLine));
+        QString exeName((QChar*)mfc_app->m_pszExeName, wcslen(mfc_app->m_pszExeName));
+        QString cmdLine((QChar*)mfc_app->m_lpCmdLine, wcslen(mfc_app->m_lpCmdLine));
 #else
         QString exeName = QString::fromLocal8Bit(mfc_app->m_pszExeName);
-	QString cmdLine = QString::fromLocal8Bit(mfc_app->m_lpCmdLine);
+        QString cmdLine = QString::fromLocal8Bit(mfc_app->m_lpCmdLine);
 #endif
-	QStringList arglist = QString(exeName + " " + cmdLine).split(' ');
+        QStringList arglist = QString(exeName + " " + cmdLine).split(' ');
 
-	mfc_argc = arglist.count();
-	mfc_argv = new char*[mfc_argc+1];
-	int a;
-	for (a = 0; a < mfc_argc; ++a) {
-	    QString arg = arglist[a];
-	    mfc_argv[a] = new char[arg.length()+1];
-	    qstrcpy(mfc_argv[a], arg.toLocal8Bit().data());
-	}
-	mfc_argv[a] = 0;
+        mfc_argc = arglist.count();
+        mfc_argv = new char*[mfc_argc+1];
+        int a;
+        for (a = 0; a < mfc_argc; ++a) {
+            QString arg = arglist[a];
+            mfc_argv[a] = new char[arg.length()+1];
+            qstrcpy(mfc_argv[a], arg.toLocal8Bit().data());
+        }
+        mfc_argv[a] = 0;
     }
 
     return new QMfcApp(mfcApp, mfc_argc, mfc_argv);
@@ -336,30 +345,30 @@ static bool qmfc_eventFilter(void *message)
 
     BOOL MyMfcApp::InitInstance()
     {
-	// standard MFC initialization
+    // standard MFC initialization
 
-	int argc = ...
-	char **argv = ...
+    int argc = ...
+    char **argv = ...
 
-	qtApp = new QMfcApp(this, argc, argv);
+    qtApp = new QMfcApp(this, argc, argv);
 
-	// Qt GUI initialization
+    // Qt GUI initialization
     }
 
     BOOL MyMfcApp::Run()
     {
-	int result = qtApp->exec();
-	delete qtApp;
-	qtApp = 0;
+    int result = qtApp->exec();
+    delete qtApp;
+    qtApp = 0;
 
-	return result;
+    return result;
     }
     \endcode
 
     \sa instance() run()
 */
 QMfcApp::QMfcApp(CWinApp *mfcApp, int &argc, char **argv)
-: QApplication(argc, argv), idleCount(0), doIdle(FALSE)
+    : QApplication(argc, argv), idleCount(0), doIdle(FALSE)
 {
     mfc_app = mfcApp;
 #if QT_VERSION >= 0x050000
@@ -371,26 +380,30 @@ QMfcApp::QMfcApp(CWinApp *mfcApp, int &argc, char **argv)
 }
 #endif
 
-QMfcApp::QMfcApp(int &argc, char **argv) : QApplication(argc, argv)
+QMfcApp::QMfcApp(int& argc, char** argv)
+    : QApplication(argc, argv)
+    , idleCount(0)
+    , doIdle(false)
 {
 #if QT_VERSION >= 0x050000
     QAbstractEventDispatcher::instance()->installNativeEventFilter(qmfcEventFilter());
 #endif
 }
+
 /*!
     Destroys the QMfcApp object, freeing all allocated resources.
 */
 QMfcApp::~QMfcApp()
 {
-    if (hhook) {
-	UnhookWindowsHookEx(hhook);
-	hhook = 0;
+    if (hhook != nullptr) {
+        UnhookWindowsHookEx(hhook);
+        hhook = nullptr;
     }
 
 #ifdef QTWINMIGRATE_WITHMFC
     for (int a = 0; a < mfc_argc; ++a) {
-	char *arg = mfc_argv[a];
-	delete[] arg;
+        char *arg = mfc_argv[a];
+        delete[] arg;
     }
     delete []mfc_argv;
 
@@ -403,35 +416,44 @@ QMfcApp::~QMfcApp()
 /*!
     \reimp
 */
-bool QMfcApp::winEventFilter(MSG *msg, long *result)
+bool QMfcApp::winEventFilter(MSG* msg, long* result)
 {
     static bool recursion = false;
-    if (recursion)
+
+    if (recursion) {
         return false;
+    }
 
     recursion = true;
 
-    QWidget *widget = QWidget::find((WId)msg->hwnd);
-    HWND toplevel = 0;
-    if (widget) {
-        HWND parent = (HWND)widget->winId();
-        while(parent) {
+    QWidget* widget = QWidget::find(reinterpret_cast<WId>(msg->hwnd));
+    HWND toplevel = nullptr;
+
+    if (widget != nullptr) {
+        HWND parent = reinterpret_cast<HWND>(widget->winId());
+
+        while(parent != nullptr) {
             toplevel = parent;
             parent = GetParent(parent);
         }
-        HMENU menu = toplevel ? GetMenu(toplevel) : 0;
-        if (menu && GetFocus() == msg->hwnd) {
+
+        HMENU menu = toplevel != nullptr ? GetMenu(toplevel) : nullptr;
+
+        if (menu != nullptr && GetFocus() == msg->hwnd) {
             if (msg->message == WM_SYSKEYUP && msg->wParam == VK_MENU) {
                 // activate menubar on Alt-up and move focus away
                 SetFocus(toplevel);
                 SendMessage(toplevel, msg->message, msg->wParam, msg->lParam);
                 widget->setFocus();
                 recursion = false;
+
                 return TRUE;
-            } else if (msg->message == WM_SYSKEYDOWN && msg->wParam != VK_MENU) {
+            }
+            else if (msg->message == WM_SYSKEYDOWN && msg->wParam != VK_MENU) {
                 SendMessage(toplevel, msg->message, msg->wParam, msg->lParam);
                 SendMessage(toplevel, WM_SYSKEYUP, VK_MENU, msg->lParam);
                 recursion = false;
+
                 return TRUE;
             }
         }
@@ -450,15 +472,17 @@ bool QMfcApp::winEventFilter(MSG *msg, long *result)
     }
     if (mfc_app && mfc_app->PreTranslateMessage(msg)) {
         recursion = false;
-	return TRUE;
+        return TRUE;
     }
 #endif
 
     recursion = false;
+
 #if QT_VERSION < 0x050000
     return QApplication::winEventFilter(msg, result);
 #else
-    Q_UNUSED(result);
+    Q_UNUSED(result)
+
     return false;
 #endif
 }

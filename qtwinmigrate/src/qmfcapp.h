@@ -70,41 +70,44 @@ class CWinApp;
 #if QT_VERSION >= 0x050000
 #include <QAbstractNativeEventFilter>
 
-class QT_QTWINMIGRATE_EXPORT QMfcAppEventFilter : public QAbstractNativeEventFilter
+class QT_QTWINMIGRATE_EXPORT QMfcAppEventFilter
+        : public QAbstractNativeEventFilter
 {
-public:
-    QMfcAppEventFilter();
-    bool nativeEventFilter(const QByteArray &eventType, void *message, long *result);
+    public:
+        QMfcAppEventFilter();
+        bool nativeEventFilter(const QByteArray& eventType, void* message, long* result) override;
 };
+
 #endif
 
-class QT_QTWINMIGRATE_EXPORT QMfcApp : public QApplication
+class QT_QTWINMIGRATE_EXPORT QMfcApp
+        : public QApplication
 {
-public:
-    static bool pluginInstance(Qt::HANDLE plugin = 0);
+    public:
+        static bool pluginInstance(Qt::HANDLE plugin = nullptr);
 
 #ifdef QTWINMIGRATE_WITHMFC
-    static int run(CWinApp *mfcApp);
-    static QApplication *instance(CWinApp *mfcApp);
-    QMfcApp(CWinApp *mfcApp, int &argc, char **argv);
+        static int run(CWinApp *mfcApp);
+        static QApplication *instance(CWinApp *mfcApp);
+        QMfcApp(CWinApp *mfcApp, int &argc, char **argv);
 #endif
-    QMfcApp(int &argc, char **argv);
-    ~QMfcApp();
+        QMfcApp(int& argc, char** argv);
+        ~QMfcApp() override;
 
-    bool winEventFilter(MSG *msg, long *result);
+        bool winEventFilter(MSG* msg, long* result);
 
-    static void enterModalLoop();
-    static void exitModalLoop();
+        static void enterModalLoop();
+        static void exitModalLoop();
 
-private:
+    private:
 #ifdef QTWINMIGRATE_WITHMFC
-    static char ** mfc_argv;
-    static int mfc_argc;
-    static CWinApp *mfc_app;
+        static char ** mfc_argv;
+        static int mfc_argc;
+        static CWinApp *mfc_app;
 #endif
 
-    int idleCount;
-    bool doIdle;
+        int idleCount;
+        bool doIdle;
 };
 
 #endif // QMFCAPP_H
